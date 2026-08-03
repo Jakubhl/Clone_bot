@@ -5,7 +5,7 @@ Clone bot je jednoduchá desktopová aplikace vyvíjená v C++ Qt5.
 
 # Funkce
 1. Umožňuje sloučit více kroků:
-- vytvoření adresáře projektu podle podle git adresářové struktury
+- vytvoření lokálního adresáře projektu podle git adresářové struktury (project group / repo / source branch / issue branch)
 - příkazy clone, create branch, switch branch
 - stáhnutí dependencies/ balíčků
 - generate solution (.sln, .vcproj)
