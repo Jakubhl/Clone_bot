@@ -13,5 +13,8 @@ Clone bot je jednoduchá desktopová aplikace vyvíjená v C++ Qt5.
 
 2. Umožnuje paralelně připravovat více projektů najednou
 
+Settings uchovává v adresáři appdata aplikace vložené cesty a poslední uživatelské volby.
+
 # Náhled aplikace:
 ![main window](pic/main_window.png)
+![settings window](pic/settings_window.png)

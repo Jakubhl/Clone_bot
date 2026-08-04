@@ -63,7 +63,24 @@ void CloneBotWindow::RunClone()
     // BAT soubor
     // QString batPath = QDir(issueFolderPath).filePath("run_issue.bat");
     // QString batPath = QDir().filePath(QString("Run_%1_clone_issue%2.bat").arg(projectName).arg(issueNumber));
-    QString batPath = QCoreApplication::applicationDirPath() + QString("/Run_%1_clone_issue%2.bat").arg(projectName).arg(issueNumber);
+    // QString batPath = QCoreApplication::applicationDirPath() + QString("/Run_%1_clone_issue%2.bat").arg(projectName).arg(issueNumber);
+
+    QString batDir = QCoreApplication::applicationDirPath() + "/output";
+    // QDir().mkpath(batDir);
+
+    QDir dir(batDir);
+    if (dir.exists()) {
+        QStringList batFiles = dir.entryList({"*.bat"}, QDir::Files);
+
+        for (const QString& file : batFiles) {
+            dir.remove(file);
+        }
+    } else {
+        dir.mkpath(".");
+    }
+
+    QString batPath = batDir + QString("/Run_%1_clone_issue%2.bat").arg(projectName).arg(issueNumber);
+        
     QFile batFile(batPath);
     batFile.open(QIODevice::WriteOnly | QIODevice::Text);
 
@@ -90,7 +107,9 @@ void CloneBotWindow::RunClone()
 
     out << "git checkout " << sourceBranch << "\n";
     out << "git fetch --all\n";
-    out << "git checkout " << issueFolderName << " || git checkout -b " << issueFolderName << "\n\n";
+    if (ui->CHB_createBranch->isChecked()){
+        out << "git checkout " << issueFolderName << " || git checkout -b " << issueFolderName << "\n\n";
+    }
 
     out << "echo ------------------------------------------------------------------------------\n";
     out << "echo Branch switched to: " << issueFolderName << " (HEAD: " << sourceBranch << ")\n";
@@ -151,125 +170,6 @@ void CloneBotWindow::RunClone()
     // musím zjistit jestli je daná cesta prázdná jinak se neprovede git clone
     QProcess::startDetached("cmd.exe", {"/c", "start", "", batPath}, issueFolderPath); // zustane otevrene
     
-    
-    
-    
-    return;
-
-
-
-
-    // git management
-    // QString gitFullPath = s.gitRepository + issueType + "/" + projectName + ".git";
-
-    QProcess gitClone;
-    gitClone.start("git", {"clone", gitFullPath, issueFolderPath});
-    gitClone.waitForFinished();
-
-    if (gitClone.exitCode() != 0) {
-        // qDebug() << "Chyba při klonování:" << gitClone.readAllStandardError();
-    }
-    else {
-        // qDebug() << "Repozitář naklonován";
-    }
-
-
-
-    //checkout branch
-    if (sourceBranch != "master") {
-    QProcess gitCheckout;
-    gitCheckout.setWorkingDirectory(issueFolderPath);
-
-    gitCheckout.start("git", {"checkout", sourceBranch});
-    gitCheckout.waitForFinished();
-    }
-
-    QProcess gitBranches;
-    gitBranches.setWorkingDirectory(issueFolderPath);
-
-    gitBranches.start("git", {"branch", "-a"});
-    gitBranches.waitForFinished();
-
-    QString output = gitBranches.readAllStandardOutput();
-
-    QStringList branches;
-    for (const QString &line : output.split('\n')) {
-        QString b = line.trimmed();
-        if (b.isEmpty()) continue;
-
-        b.replace("remotes/origin/", "");
-        branches << b;
-    }
-
-    // qDebug() << "Všechny větve:" << branches;
-
-
-
-
-
-    auto switchOrCreateBranch = [&](const QString& gitPath, const QString& branchName)
-    {
-        QProcess checkout;
-        checkout.setWorkingDirectory(gitPath);
-
-        checkout.start("git", {"checkout", branchName});
-        checkout.waitForFinished();
-
-        if (checkout.exitCode() == 0) {
-            // qDebug() << "✓ Přepnuto na" << branchName;
-        }
-        else {
-            // qDebug() << "Větev neexistuje, vytvářím:" << branchName;
-
-            QProcess create;
-            create.setWorkingDirectory(gitPath);
-            create.start("git", {"checkout", "-b", branchName});
-            create.waitForFinished();
-
-            // qDebug() << "✓ Větev vytvořena";
-        }
-    };
-
-    switchOrCreateBranch(issueFolderPath, issueFolderName);
-
-
-
-
-
-    // generate
-    QProcess qProc;
-    qProc.setWorkingDirectory(issueFolderPath);
-    qProc.start("get_deps");
-    qProc.waitForFinished();
-    qProc.start("gen_project", {s.year, s.architecture});
-    qProc.waitForFinished();
-    // QString GEN_PROJECT_PATH = "build_" + s.year + s.architecture;
-    QString GEN_PROJECT_PATH = "build_2019_64";
-    QString BUILD_PROJECT_PATH = "build\x64";
-
-    // build
-    QString genProjectFullPath = QDir(issueFolderPath).filePath(GEN_PROJECT_PATH);
-
-    QProcess msbuild;
-    msbuild.setWorkingDirectory(genProjectFullPath);
-
-    msbuild.start(s.msbuildPath, {projectName + ".sln", "/p:Configuration=Debug"});
-    msbuild.waitForFinished();
-    QThread::sleep(3);
-
-
-
-    // open studio and app
-    QString slnPath = QDir(issueFolderPath)
-    .filePath(GEN_PROJECT_PATH + "/" + projectName + ".sln");
-
-    QString exePath = QDir(issueFolderPath)
-        .filePath(BUILD_PROJECT_PATH + "/" + projectName + "_dbg.exe");
-
-    QProcess::startDetached("cmd.exe", {"/c", "start", "", slnPath});
-    QThread::sleep(3);
-    QProcess::startDetached("cmd.exe", {"/c", "start", "", exePath});
-
 }
 
 AppSettings CloneBotWindow::CollectSettingsFromUi() const
@@ -310,8 +210,6 @@ QStringList CloneBotWindow::GetBranchList()
     if (!repoName.isEmpty() && !gitPath.isEmpty()) {
 
         QString gitRepo = gitPath + appOrCom + "/" + repoName + ".git";
-        // std::string ahoj = gitRepo.toStdString();
-
         QProcess process;
         process.start("git", {"ls-remote", "--heads", gitRepo});
         process.waitForFinished();
@@ -331,12 +229,9 @@ QStringList CloneBotWindow::GetBranchList()
             if (ref.startsWith("refs/heads/"))
                 repoBranchList.append(ref.mid(QString("refs/heads/").length()));
         }
-
-
     }
 
     return repoBranchList;
-
 }
 
 void CloneBotWindow::on_btnSave_clicked()
@@ -355,6 +250,5 @@ void CloneBotWindow::on_btnRefresh_clicked()
     } else {
         ui->CB_sourceBranch->clear();
         ui->CB_sourceBranch->addItems({"vng1","master"});
-        
     }
 }
