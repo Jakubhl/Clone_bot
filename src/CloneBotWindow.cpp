@@ -4,6 +4,7 @@
 #include <QTextStream>
 #include <QProcess>
 #include <QThread>
+// #include <QColor>
 // #include <QSizeF>
 
 CloneBotWindow::CloneBotWindow(QWidget *parent)
@@ -69,15 +70,16 @@ void CloneBotWindow::RunClone()
     // QDir().mkpath(batDir);
 
     QDir dir(batDir);
-    if (dir.exists()) {
-        QStringList batFiles = dir.entryList({"*.bat"}, QDir::Files);
+    // Nemohu provádět cleanup když budu pouštět více tasků paralelně
+    // if (dir.exists()) {
+    //     QStringList batFiles = dir.entryList({"*.bat"}, QDir::Files);
 
-        for (const QString& file : batFiles) {
-            dir.remove(file);
-        }
-    } else {
+    //     for (const QString& file : batFiles) {
+    //         dir.remove(file);
+    //     }
+    // } else {
         dir.mkpath(".");
-    }
+    // }
 
     QString batPath = batDir + QString("/Run_%1_clone_issue%2.bat").arg(projectName).arg(issueNumber);
         
