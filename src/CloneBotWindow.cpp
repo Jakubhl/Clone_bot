@@ -4,8 +4,7 @@
 #include <QTextStream>
 #include <QProcess>
 #include <QThread>
-// #include <QColor>
-// #include <QSizeF>
+#include <QDateTime>
 
 CloneBotWindow::CloneBotWindow(QWidget *parent)
     : QDialog(parent)
@@ -16,18 +15,23 @@ CloneBotWindow::CloneBotWindow(QWidget *parent)
     setWindowTitle("Clonebot");
     setWindowIcon(QIcon("../../pic/robot_ico.png"));
 
-    ui->CB_sourceBranch->addItems({"vng1","master"}); // dodelat aut. plnění + uložení do configu
-    ui->CB_issueType->addItems({"app", "com","3p","tools","vat"}); // dodelat aut. plnění + uložení do configu
-    ui->CB_releaseDebug->addItems({"Release", "Debug"}); // dodelat uložení do configu
-    ui->CB_action->addItems({"Only clone", "Clone + (get deps + gen project)", "Clone + (get deps + gen project + build) + run"}); // dodelat uložení do configu
-
-    ApplySettingsToUi();
+    ui->CB_sourceBranch->addItems({"vng1","master"});
+    ui->CB_issueType->addItems({"app", "com","3p","tools","vat"});
+    ui->CB_releaseDebug->addItems({"Release", "Debug"});
+    ui->CB_action->addItems({"Only clone",
+         "Clone + (get deps + gen project)",
+         "Clone + (get deps + gen project + build)",
+         "Clone + (get deps + gen project + build) + open",
+         "Clone + (get deps + gen project + build) + open + run"});
 
     connect(ui->btnSave, &QPushButton::clicked, this, &CloneBotWindow::on_btnSave_clicked);
     connect(ui->btnRefreshBranch, &QPushButton::clicked, this, &CloneBotWindow::on_btnRefresh_clicked);
-    connect(ui->btnCancel, &QPushButton::clicked, this, &QWidget::close);
-    connect(ui->btnCancelRun, &QPushButton::clicked, this, &QWidget::close);
+    connect(ui->btnCancel, &QPushButton::clicked, this, &CloneBotWindow::CloseEvent);
+    connect(ui->btnCancelRun, &QPushButton::clicked, this, &CloneBotWindow::CloseEvent);
     connect(ui->btnRun, &QPushButton::clicked, this, &CloneBotWindow::RunClone);
+    connect(qApp, &QCoreApplication::aboutToQuit, this, &CloneBotWindow::CloseEvent);
+
+    ApplySettingsToUi();
 
 }
 
@@ -40,7 +44,8 @@ CloneBotWindow::~CloneBotWindow()
 
 void CloneBotWindow::RunClone()
 {
-    int issueNumber = ui->LE_issueNumber->text().toInt();
+    // int issueNumber = ui->LE_issueNumber->text().toInt();
+    QString issueNumber = ui->LE_issueNumber->text();
     QString issueType = ui->CB_issueType->currentText();
     QString projectName = ui->LE_name->text();
     QString sourceBranch = ui->CB_sourceBranch->currentText();
@@ -70,6 +75,7 @@ void CloneBotWindow::RunClone()
     // QDir().mkpath(batDir);
 
     QDir dir(batDir);
+
     // Nemohu provádět cleanup když budu pouštět více tasků paralelně
     // if (dir.exists()) {
     //     QStringList batFiles = dir.entryList({"*.bat"}, QDir::Files);
@@ -80,6 +86,7 @@ void CloneBotWindow::RunClone()
     // } else {
         dir.mkpath(".");
     // }
+    CleanupOutputDir(&dir);
 
     QString batPath = batDir + QString("/Run_%1_clone_issue%2.bat").arg(projectName).arg(issueNumber);
         
@@ -101,6 +108,12 @@ void CloneBotWindow::RunClone()
     QString gitFullPath = QString("%1%2/%3.git").arg(s.gitRepository).arg(issueType).arg(projectName);
     out << "echo clone " << gitFullPath << "\n";
     out << "git clone \"" << gitFullPath << "\" .\n";
+
+    out << "if errorlevel 1 (\n"; // je-li už adresář zabraný jiným repo clonem
+    out << "    echo CLONE FAILED!\n";
+    out << "    pause\n";
+    out << "    exit /b 1\n";
+    out << ")\n";
 
     out << "echo ------------------------------------------------------------------------------\n";
     out << "echo Project: " << projectName << " cloned from repo: " << s.gitRepository << "\n";
@@ -148,25 +161,31 @@ void CloneBotWindow::RunClone()
             out << "echo Build completed\n";
             out << "echo ------------------------------------------------------------------------------\n";
             out << "echo \n";
+            if (chosenOption != ChosenOption::cloneDepsGenBuild) {
+                // open
+                out << "timeout /t 3 >nul\n";
+                out << "start \"\" \"" << genProjectPath << "\\" << projectName << ".sln\"\n";
+                out << "timeout /t 3 >nul\n";
 
-            // open
-            out << "timeout /t 3 >nul\n";
-            out << "start \"\" \"" << genProjectPath << "\\" << projectName << ".sln\"\n";
-            out << "timeout /t 3 >nul\n";
-            QString suffix = "_dbg";
-            if (buildOption == "Release"){
-                suffix = "";
+                if (chosenOption != ChosenOption::cloneDepsGenBuildOpen) {
+                    QString suffix = "_dbg";
+                    if (buildOption == "Release"){
+                        suffix = "";
+                    }
+                    // out << "start \"\" \"" << QString("build\\x%1\\").arg(s.architecture) << projectName << "_dbg.exe\"\n";
+                    out << "start \"\" \"" << QString("build\\x%1\\").arg(s.architecture) << projectName << suffix << ".exe\"\n";
+
+                    out << "echo ------------------------------------------------------------------------------\n";
+                    out << "echo Project opened\n";
+                    out << "echo ------------------------------------------------------------------------------\n";
+                    out << "echo \n";
+                }
             }
-            // out << "start \"\" \"" << QString("build\\x%1\\").arg(s.architecture) << projectName << "_dbg.exe\"\n";
-            out << "start \"\" \"" << QString("build\\x%1\\").arg(s.architecture) << projectName << suffix << ".exe\"\n";
-
-            out << "echo ------------------------------------------------------------------------------\n";
-            out << "echo Project opened\n";
-            out << "echo ------------------------------------------------------------------------------\n";
-            out << "echo \n";
         }
     }
-
+    if (!s.tcmdPath.isEmpty() && ui->CHB_openTcmd->isChecked()) {
+        out << QString("\"%1\" /O /T /L=\"\%CD\%\"").arg(s.tcmdPath); // opens path created
+    }
     // out << "pause";
 
     // musím zjistit jestli je daná cesta prázdná jinak se neprovede git clone
@@ -183,8 +202,12 @@ AppSettings CloneBotWindow::CollectSettingsFromUi() const
     s.msbuildPath     = ui->LE_msbuildPath->text();
     s.year            = ui->LE_year->text();
     s.architecture    = ui->LE_architecture->text();
+    s.tcmdPath        = ui->LE_tcmdPath->text();
     s.chosenOptionIndex = ui->CB_action->currentIndex();
     s.debugReleaseIndex = ui->CB_releaseDebug->currentIndex();
+    s.chosenIssueTypeIndex = ui->CB_issueType->currentIndex();
+    s.sourceBranchIndex = ui->CB_sourceBranch->currentIndex();
+    s.lastTabIndex    = ui->tabWidget->currentIndex();
 
     return s;
 }
@@ -198,8 +221,12 @@ void CloneBotWindow::ApplySettingsToUi(/*const AppSettings& s*/)
     ui->LE_msbuildPath->setText(s.msbuildPath);
     ui->LE_year->setText(s.year);
     ui->LE_architecture->setText(s.architecture);
+    ui->LE_tcmdPath->setText(s.tcmdPath);
     ui->CB_action->setCurrentIndex(s.chosenOptionIndex);
     ui->CB_releaseDebug->setCurrentIndex(s.debugReleaseIndex);
+    ui->CB_issueType->setCurrentIndex(s.chosenIssueTypeIndex);
+    ui->tabWidget->setCurrentIndex(s.lastTabIndex);
+    ui->CB_sourceBranch->setCurrentIndex(s.sourceBranchIndex);
 
 }
 
@@ -239,8 +266,13 @@ QStringList CloneBotWindow::GetBranchList()
 void CloneBotWindow::on_btnSave_clicked()
 {
     AppSettings s = CollectSettingsFromUi();
-
     _config->SaveSettings(s);
+}
+
+void CloneBotWindow::CloseEvent()
+{
+    on_btnSave_clicked();
+    close();
 }
 
 void CloneBotWindow::on_btnRefresh_clicked()
@@ -253,4 +285,20 @@ void CloneBotWindow::on_btnRefresh_clicked()
         ui->CB_sourceBranch->clear();
         ui->CB_sourceBranch->addItems({"vng1","master"});
     }
+}
+
+void CloneBotWindow::CleanupOutputDir(QDir* batDir)
+{
+    const QDateTime limit = QDateTime::currentDateTime().addDays(-7);
+    const QStringList batFiles = batDir->entryList({"*.bat"}, QDir::Files);
+    for (const QString& file : batFiles)
+    {
+        QFileInfo fileInfo(batDir->filePath(file));
+
+        if (fileInfo.lastModified() < limit)
+        {
+            QFile::remove(fileInfo.filePath());
+        }
+    }
+
 }

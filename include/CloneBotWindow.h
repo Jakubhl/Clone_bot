@@ -20,12 +20,16 @@ private:
     void ApplySettingsToUi(/*const AppSettings& s*/);
     AppConfig* _config;
     void RunClone();
+    void CloseEvent();
+    void CleanupOutputDir(QDir* batDir);
     QStringList CloneBotWindow::GetBranchList();
     enum ChosenOption 
     {
         onlyClone,
         cloneDepsGen,
-        cloneDepsGenBuildRun
+        cloneDepsGenBuild,
+        cloneDepsGenBuildOpen,
+        cloneDepsGenBuildOpenRun
     };
     // QStringList branchListVect;
 

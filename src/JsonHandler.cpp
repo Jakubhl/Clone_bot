@@ -10,6 +10,12 @@ bool AppConfig::SaveSettings(const AppSettings& s)
     obj["msbuildPath"]     = s.msbuildPath;
     obj["year"]            = s.year;
     obj["architecture"]    = s.architecture;
+    obj["tcmdPath"]        = s.tcmdPath;
+    obj["optionIndex"]     = s.chosenOptionIndex;
+    obj["debugOrRelease"]  = s.debugReleaseIndex;
+    obj["issueTypeIndex"]  = s.chosenIssueTypeIndex;
+    obj["lastTabIndex"]    = s.lastTabIndex;
+    obj["sourceBranchIndex"] = s.sourceBranchIndex;
 
     QJsonDocument doc(obj);
 
@@ -33,11 +39,17 @@ bool AppConfig::LoadSettings(AppSettings& s)
 
     QJsonObject obj = doc.object();
 
-    s.localRootFolder = obj["localRootFolder"].toString();
-    s.gitRepository   = obj["gitRepository"].toString();
-    s.msbuildPath     = obj["msbuildPath"].toString();
-    s.year            = obj["year"].toString();
-    s.architecture    = obj["architecture"].toString();
+    s.localRootFolder       = obj["localRootFolder"].toString();
+    s.gitRepository         = obj["gitRepository"].toString();
+    s.msbuildPath           = obj["msbuildPath"].toString();
+    s.year                  = obj["year"].toString();
+    s.architecture          = obj["architecture"].toString();
+    s.tcmdPath              = obj["tcmdPath"].toString();
+    s.chosenOptionIndex     = obj["optionIndex"].toInt();
+    s.debugReleaseIndex     = obj["debugOrRelease"].toInt();
+    s.chosenIssueTypeIndex  = obj["issueTypeIndex"].toInt();
+    s.lastTabIndex          = obj["lastTabIndex"].toInt();
+    s.sourceBranchIndex     = obj["sourceBranchIndex"].toInt();
 
     return true;
 }
