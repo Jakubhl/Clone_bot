@@ -111,14 +111,14 @@ void CloneBotWindow::RunClone()
 
     out << "if errorlevel 1 (\n"; // je-li už adresář zabraný jiným repo clonem
     out << "    echo CLONE FAILED!\n";
-    out << "    pause\n";
-    out << "    exit /b 1\n";
-    out << ")\n";
-
+    // out << "    pause\n";
+    // out << "    exit /b 1\n";
+    out << ") else (\n";
     out << "echo ------------------------------------------------------------------------------\n";
     out << "echo Project: " << projectName << " cloned from repo: " << s.gitRepository << "\n";
     out << "echo ------------------------------------------------------------------------------\n";
     out << "echo \n";
+    out << ")\n";
 
     out << "git checkout " << sourceBranch << "\n";
     out << "git fetch --all\n";
@@ -149,17 +149,55 @@ void CloneBotWindow::RunClone()
 
         if (chosenOption != ChosenOption::cloneDepsGen) {
             // build
-            // QString genProjectPath = "build_2019_64";
             QString genProjectPath = QString("build_%1_%2").arg(s.year).arg(s.architecture);
-            // out << "msbuild " << genProjectPath << "\\" << projectName << ".sln /p:Configuration=Debug\n\n";
-
-            // QString genProjectFullPath = QDir(issueFolderPath).filePath(genProjectPath);
-            // out << "cd /d \"" << genProjectFullPath << "\"\n";
             out << "\"" << s.msbuildPath << "\" \"" << genProjectPath << "\\" << projectName << ".sln\" /p:Configuration=" << buildOption << "\n";
 
             out << "echo ------------------------------------------------------------------------------\n";
             out << "echo Build completed\n";
             out << "echo ------------------------------------------------------------------------------\n";
+
+            QString vcxprojPath = QDir(issueFolderPath + "\\" + genProjectPath).filePath(projectName + ".vcxproj.user");
+
+            // out << "powershell -NoProfile -ExecutionPolicy Bypass -Command \""
+            //     << "$path='" << vcxprojPath << "'; "
+            //     << "$nsUri='http://schemas.microsoft.com/developer/msbuild/2003'; "
+            //     << "if (Test-Path $path) { "
+            //     << "[xml]$xml=Get-Content -Raw $path "
+            //     << "} else { "
+            //     << "$xml=New-Object System.Xml.XmlDocument; "
+            //     << "$decl=$xml.CreateXmlDeclaration('1.0','utf-8',$null); "
+            //     << "$xml.AppendChild($decl) | Out-Null; "
+            //     << "$root=$xml.CreateElement('Project',$nsUri); "
+            //     << "$root.SetAttribute('ToolsVersion','Current'); "
+            //     << "$xml.AppendChild($root) | Out-Null "
+            //     << "}; "
+            //     << "$group=$xml.Project.PropertyGroup | Where-Object { "
+            //     << "$_.Condition -like '*" << buildOption << "|x64*' "
+            //     << "} | Select-Object -First 1; "
+            //     << "if ($null -eq $group) { "
+            //     << "$group=$xml.CreateElement('PropertyGroup',$nsUri); "
+            //     << "$condition=([char]39).ToString() + '$' + '(Configuration)|$' + '(Platform)' + ([char]39).ToString() + '==' + ([char]39).ToString() + '"
+            //     << buildOption << "|x64' + ([char]39).ToString(); "
+            //     << "$group.SetAttribute('Condition',$condition); "
+            //     << "$xml.Project.AppendChild($group) | Out-Null "
+            //     << "}; "
+            //     << "$setXmlValue = { param($parent, $name, $value) "
+            //     << "$node=$parent.ChildNodes | Where-Object { $_.LocalName -eq $name } | Select-Object -First 1; "
+            //     << "if ($null -eq $node) { "
+            //     << "$node=$xml.CreateElement($name,$nsUri); "
+            //     << "$parent.AppendChild($node) | Out-Null "
+            //     << "}; "
+            //     << "$node.InnerText=$value "
+            //     << "}; "
+            //     << "& $setXmlValue $group 'LocalDebuggerCommandArguments' '-id:"
+            //     << projectName << " -si:RS'; "
+            //     << "& $setXmlValue $group 'LocalDebuggerWorkingDirectory' 'd:\\ERA\\SDP_0.00_olapsAll\\'; "
+            //     << "& $setXmlValue $group 'DebuggerFlavor' 'WindowsLocalDebugger'; "
+            //     // << "& $setXmlValue $group 'OutDir' 'd:\\ERA\\SDP_0.00_olapsAll\\'; " // Visual studio to ukládá do main vcxproj
+            //     << "$xml.Save($path); "
+            //     << "Write-Host 'vcxproj.user updated'; "
+            //     << "\"\n";
+
             out << "echo \n";
             if (chosenOption != ChosenOption::cloneDepsGenBuild) {
                 // open
@@ -289,7 +327,7 @@ void CloneBotWindow::on_btnRefresh_clicked()
 
 void CloneBotWindow::CleanupOutputDir(QDir* batDir)
 {
-    const QDateTime limit = QDateTime::currentDateTime().addDays(-7);
+    const QDateTime limit = QDateTime::currentDateTime().addDays(-2); // older then 2 days
     const QStringList batFiles = batDir->entryList({"*.bat"}, QDir::Files);
     for (const QString& file : batFiles)
     {
@@ -300,5 +338,4 @@ void CloneBotWindow::CleanupOutputDir(QDir* batDir)
             QFile::remove(fileInfo.filePath());
         }
     }
-
 }
