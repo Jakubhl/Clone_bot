@@ -19,6 +19,9 @@ struct AppSettings
     int chosenIssueTypeIndex = 0;
     int lastTabIndex = 0;
     int sourceBranchIndex = 0;
+    bool openTcmd = false;
+    QString workingDir;
+    QString commandArgs;
 };
 
 class AppConfig {

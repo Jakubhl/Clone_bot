@@ -16,6 +16,9 @@ bool AppConfig::SaveSettings(const AppSettings& s)
     obj["issueTypeIndex"]  = s.chosenIssueTypeIndex;
     obj["lastTabIndex"]    = s.lastTabIndex;
     obj["sourceBranchIndex"] = s.sourceBranchIndex;
+    obj["openTcmd"]        = s.openTcmd;
+    obj["workingDir"]      = s.workingDir;
+    obj["commandArgs"]     = s.commandArgs;
 
     QJsonDocument doc(obj);
 
@@ -50,6 +53,9 @@ bool AppConfig::LoadSettings(AppSettings& s)
     s.chosenIssueTypeIndex  = obj["issueTypeIndex"].toInt();
     s.lastTabIndex          = obj["lastTabIndex"].toInt();
     s.sourceBranchIndex     = obj["sourceBranchIndex"].toInt();
+    s.openTcmd              = obj["openTcmd"].toBool();
+    s.workingDir            = obj["workingDir"].toString();
+    s.commandArgs           = obj["commandArgs"].toString();
 
     return true;
 }

@@ -31,6 +31,9 @@ private:
         cloneDepsGenBuildOpen,
         cloneDepsGenBuildOpenRun
     };
-    // QStringList branchListVect;
+    QString CheckCommandArgs(QString inputArgs);
+
+private slots:
+    void OnProjectNameChange(const QString &text);
 
 };

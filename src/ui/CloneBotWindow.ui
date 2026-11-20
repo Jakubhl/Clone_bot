@@ -35,7 +35,7 @@
        <x>10</x>
        <y>0</y>
        <width>91</width>
-       <height>151</height>
+       <height>211</height>
       </rect>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -81,6 +81,23 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QLabel" name="label_13">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Exaple:&lt;br/&gt;-id:project_name -si:RS&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Command args:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_14">
+        <property name="text">
+         <string>Working dir:</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
     <widget class="QWidget" name="verticalLayoutWidget_4">
@@ -89,7 +106,7 @@
        <x>100</x>
        <y>0</y>
        <width>281</width>
-       <height>159</height>
+       <height>211</height>
       </rect>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -159,6 +176,12 @@
       </item>
       <item>
        <widget class="QComboBox" name="CB_action"/>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="LE_commArgs"/>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="LE_workDir"/>
       </item>
      </layout>
     </widget>

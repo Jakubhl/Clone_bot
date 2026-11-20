@@ -30,6 +30,7 @@ CloneBotWindow::CloneBotWindow(QWidget *parent)
     connect(ui->btnCancelRun, &QPushButton::clicked, this, &CloneBotWindow::CloseEvent);
     connect(ui->btnRun, &QPushButton::clicked, this, &CloneBotWindow::RunClone);
     connect(qApp, &QCoreApplication::aboutToQuit, this, &CloneBotWindow::CloseEvent);
+    connect(ui->LE_name, &QLineEdit::textChanged,this, &CloneBotWindow::OnProjectNameChange);
 
     ApplySettingsToUi();
 
@@ -145,59 +146,85 @@ void CloneBotWindow::RunClone()
         out << "echo ------------------------------------------------------------------------------\n";
         out << "echo Project generated\n";
         out << "echo ------------------------------------------------------------------------------\n";
+
+        QString genProjectPath = QString("build_%1_%2").arg(s.year).arg(s.architecture);
+        QString vcxprojPath = QDir(issueFolderPath + "\\" + genProjectPath).filePath(projectName + ".vcxproj");
+
+        out << "powershell -NoProfile -ExecutionPolicy Bypass -Command \""
+            << "$path='" << vcxprojPath << ".user'; "
+            << "$nsUri='http://schemas.microsoft.com/developer/msbuild/2003'; "
+            << "if (Test-Path $path) { "
+            << "[xml]$xml=Get-Content -Raw $path "
+            << "} else { "
+            << "$xml=New-Object System.Xml.XmlDocument; "
+            << "$decl=$xml.CreateXmlDeclaration('1.0','utf-8',$null); "
+            << "$xml.AppendChild($decl) | Out-Null; "
+            << "$root=$xml.CreateElement('Project',$nsUri); "
+            << "$root.SetAttribute('ToolsVersion','Current'); "
+            << "$xml.AppendChild($root) | Out-Null "
+            << "}; "
+            << "$group=$xml.Project.PropertyGroup | Where-Object { "
+            << "$_.Condition -like '*" << buildOption << "|x64*' "
+            << "} | Select-Object -First 1; "
+            << "if ($null -eq $group) { "
+            << "$group=$xml.CreateElement('PropertyGroup',$nsUri); "
+            << "$condition=([char]39).ToString() + '$' + '(Configuration)|$' + '(Platform)' + ([char]39).ToString() + '==' + ([char]39).ToString() + '"
+            << buildOption << "|x" << s.architecture << "' + ([char]39).ToString(); "
+            << "$group.SetAttribute('Condition',$condition); "
+            << "$xml.Project.AppendChild($group) | Out-Null "
+            << "}; "
+            << "$setXmlValue = { param($parent, $name, $value) "
+            << "$node=$parent.ChildNodes | Where-Object { $_.LocalName -eq $name } | Select-Object -First 1; "
+            << "if ($null -eq $node) { "
+            << "$node=$xml.CreateElement($name,$nsUri); "
+            << "$parent.AppendChild($node) | Out-Null "
+            << "}; "
+            << "$node.InnerText=$value "
+            << "}; "
+            // << "& $setXmlValue $group 'LocalDebuggerCommandArguments' '-id:" << projectName << " -si:RS'; "
+            << "& $setXmlValue $group 'LocalDebuggerCommandArguments' '" << CheckCommandArgs(s.commandArgs) << "'; "
+            << "& $setXmlValue $group 'LocalDebuggerWorkingDirectory' '" << s.workingDir << "'; "
+            << "& $setXmlValue $group 'DebuggerFlavor' 'WindowsLocalDebugger'; "
+            // << "& $setXmlValue $group 'OutDir' 'd:\\ERA\\SDP_0.00_olapsAll\\'; " // Visual studio to ukládá do main vcxproj
+            << "$xml.Save($path); "
+            << "Write-Host 'vcxproj.user updated'; "
+            << "\"\n";
+        
+        // Úprava hlavního vcxproj - kvůli Outdir v general settings
+        out << "powershell -NoProfile -ExecutionPolicy Bypass -Command \""
+            << "$path='" << vcxprojPath << "'; "
+            // Načtení XML
+            << "if (Test-Path $path) { "
+            << "[xml]$xml=Get-Content -Raw $path; "
+            // Původní a nová cesta
+            << "$oldPath='" << issueFolderPath.replace("/", "\\") << "\\build\\x" << s.architecture << "\\'; "
+            << "$newPath='" << s.workingDir.replace("/", "\\") << "'; "
+            // Vyhledání OutDir elementů
+            << "$nodes=$xml.SelectNodes('//*[local-name()=''OutDir'']'); "
+            // Nahrazení prvních dvou nalezených cest (Debug a Release)
+            << "$count=0; "
+            << "foreach ($node in $nodes) { "
+            << "if ($count -ge 2) { break }; "
+            << "if ($node.InnerText.Contains($oldPath)) { "
+            << "$node.InnerText=$node.InnerText.Replace($oldPath,$newPath); "
+            << "$count++; "
+            << "} "
+            << "}; "
+            // Uložení XML
+            << "$xml.Save($path); "
+            << "Write-Host \"Replaced $count OutDir paths\"; "
+            << "} else { "
+            << "Write-Host 'vcxproj not found'; "
+            << "}; "
+            << "\"\n";
         out << "echo \n";
 
         if (chosenOption != ChosenOption::cloneDepsGen) {
             // build
-            QString genProjectPath = QString("build_%1_%2").arg(s.year).arg(s.architecture);
             out << "\"" << s.msbuildPath << "\" \"" << genProjectPath << "\\" << projectName << ".sln\" /p:Configuration=" << buildOption << "\n";
-
             out << "echo ------------------------------------------------------------------------------\n";
             out << "echo Build completed\n";
             out << "echo ------------------------------------------------------------------------------\n";
-
-            QString vcxprojPath = QDir(issueFolderPath + "\\" + genProjectPath).filePath(projectName + ".vcxproj.user");
-
-            // out << "powershell -NoProfile -ExecutionPolicy Bypass -Command \""
-            //     << "$path='" << vcxprojPath << "'; "
-            //     << "$nsUri='http://schemas.microsoft.com/developer/msbuild/2003'; "
-            //     << "if (Test-Path $path) { "
-            //     << "[xml]$xml=Get-Content -Raw $path "
-            //     << "} else { "
-            //     << "$xml=New-Object System.Xml.XmlDocument; "
-            //     << "$decl=$xml.CreateXmlDeclaration('1.0','utf-8',$null); "
-            //     << "$xml.AppendChild($decl) | Out-Null; "
-            //     << "$root=$xml.CreateElement('Project',$nsUri); "
-            //     << "$root.SetAttribute('ToolsVersion','Current'); "
-            //     << "$xml.AppendChild($root) | Out-Null "
-            //     << "}; "
-            //     << "$group=$xml.Project.PropertyGroup | Where-Object { "
-            //     << "$_.Condition -like '*" << buildOption << "|x64*' "
-            //     << "} | Select-Object -First 1; "
-            //     << "if ($null -eq $group) { "
-            //     << "$group=$xml.CreateElement('PropertyGroup',$nsUri); "
-            //     << "$condition=([char]39).ToString() + '$' + '(Configuration)|$' + '(Platform)' + ([char]39).ToString() + '==' + ([char]39).ToString() + '"
-            //     << buildOption << "|x64' + ([char]39).ToString(); "
-            //     << "$group.SetAttribute('Condition',$condition); "
-            //     << "$xml.Project.AppendChild($group) | Out-Null "
-            //     << "}; "
-            //     << "$setXmlValue = { param($parent, $name, $value) "
-            //     << "$node=$parent.ChildNodes | Where-Object { $_.LocalName -eq $name } | Select-Object -First 1; "
-            //     << "if ($null -eq $node) { "
-            //     << "$node=$xml.CreateElement($name,$nsUri); "
-            //     << "$parent.AppendChild($node) | Out-Null "
-            //     << "}; "
-            //     << "$node.InnerText=$value "
-            //     << "}; "
-            //     << "& $setXmlValue $group 'LocalDebuggerCommandArguments' '-id:"
-            //     << projectName << " -si:RS'; "
-            //     << "& $setXmlValue $group 'LocalDebuggerWorkingDirectory' 'd:\\ERA\\SDP_0.00_olapsAll\\'; "
-            //     << "& $setXmlValue $group 'DebuggerFlavor' 'WindowsLocalDebugger'; "
-            //     // << "& $setXmlValue $group 'OutDir' 'd:\\ERA\\SDP_0.00_olapsAll\\'; " // Visual studio to ukládá do main vcxproj
-            //     << "$xml.Save($path); "
-            //     << "Write-Host 'vcxproj.user updated'; "
-            //     << "\"\n";
-
             out << "echo \n";
             if (chosenOption != ChosenOption::cloneDepsGenBuild) {
                 // open
@@ -246,6 +273,9 @@ AppSettings CloneBotWindow::CollectSettingsFromUi() const
     s.chosenIssueTypeIndex = ui->CB_issueType->currentIndex();
     s.sourceBranchIndex = ui->CB_sourceBranch->currentIndex();
     s.lastTabIndex    = ui->tabWidget->currentIndex();
+    s.openTcmd        = ui->CHB_openTcmd->isChecked();
+    s.workingDir      = ui->LE_workDir->text();
+    s.commandArgs     = ui->LE_commArgs->text();
 
     return s;
 }
@@ -265,6 +295,9 @@ void CloneBotWindow::ApplySettingsToUi(/*const AppSettings& s*/)
     ui->CB_issueType->setCurrentIndex(s.chosenIssueTypeIndex);
     ui->tabWidget->setCurrentIndex(s.lastTabIndex);
     ui->CB_sourceBranch->setCurrentIndex(s.sourceBranchIndex);
+    ui->CHB_openTcmd->setChecked(s.openTcmd);
+    ui->LE_workDir->setText(s.workingDir);
+    ui->LE_commArgs->setText(s.commandArgs);
 
 }
 
@@ -338,4 +371,54 @@ void CloneBotWindow::CleanupOutputDir(QDir* batDir)
             QFile::remove(fileInfo.filePath());
         }
     }
+}
+
+QString CloneBotWindow::CheckCommandArgs(QString inputArgs)
+{
+    inputArgs.remove(" ");
+    QStringList arguments = inputArgs.split('-', QString::SkipEmptyParts);
+    QString newArgs = "";
+    for (const QString &arg : arguments) {
+        QStringList parts = arg.split(':');
+        if (parts.size() != 2) {
+            continue;
+        }
+        
+        QString name = parts[0];
+        QString value = parts[1];
+        newArgs = newArgs + "-" + name + ":" + value + " ";
+    }
+    ui->LE_commArgs->setText(newArgs); // případnou opravu zapíšu
+
+    return newArgs;
+}
+
+void CloneBotWindow::OnProjectNameChange(const QString &text)
+{
+    QString currentInput = ui->LE_commArgs->text();
+    currentInput.remove(" ");
+    QStringList arguments = currentInput.split('-', QString::SkipEmptyParts);
+    QString newIdInput = "";
+    for (const QString &arg : arguments) {
+        QStringList parts = arg.split(':');
+        if (parts.size() != 2) {
+            continue;
+        }
+        
+        QString name = parts[0];
+        QString value = parts[1];
+        if (name == "id"){
+            value = ui->LE_name->text();
+        }
+        newIdInput = newIdInput + "-" + name + ":" + value + " ";
+    }
+
+    if (newIdInput.isEmpty()){
+        newIdInput = newIdInput + "-id:" + ui->LE_name->text() + " -si:RS";
+        ui->LE_commArgs->setText(newIdInput);
+    } else {
+        // ještě odstranit mezeru na konci
+        ui->LE_commArgs->setText(newIdInput.remove(QRegularExpression("\\s+$")));
+    }
+
 }
